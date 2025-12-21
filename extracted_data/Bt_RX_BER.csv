@@ -1,0 +1,5 @@
+Site,Produt,SerialNumber,Special Build Name,Special Build Description,Unit Number,Station ID,Test Pass/Fail Status,StartTime,EndTime,Version,List of Failing Tests,FW_Version,Covarage_Ver,Flow_Ver,Execute_Failure,UNIT_OUT_OF_PROCESS,TestTime,NEP_PASS,BT_RX-2402-3DH5--70_BER,BT_RX-2440-3DH5--70_BER,BT_RX-2480-3DH5--70_BER
+Upper Limit ----->,,,,,,,,,,,,,,,,,,,50,50,50
+Lower Limit ----->,,,,,,,,,,,,,,,,,,,0,0,0
+Measurement Unit ----->,,,,,,,,,,,,,,,,,,,%,%,%
+,,,,,,,Fail,12/15/2025 8:56:43 PM,12/15/2025 8:59:11 PM,V1.0.3.4,WIFI_TX-2412-OFDM-54M-14,V0.0.0,V0.0.0,,,,,,0,0,0
