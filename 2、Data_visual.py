@@ -1,12 +1,9 @@
 import pandas as pd
-import numpy as np
-import dash
 import glob
 import os
 import re
 from dash import dcc,html,Dash,Input,Output
 import plotly.graph_objects as go
-
 
 class  SiteProcess:
     def __init__ (self,file_path):
@@ -20,7 +17,7 @@ class  SiteProcess:
     def process_site(self):
         self.header = {'serial_header':'SerialNumber','config_header':'BUILD_MATRIX_CONFIG'}
         self.serial_number = self.df.iloc[:,2]
-        self.config = self.df.iloc[:,3]
+        self.config = self.df.iloc[:,4]
 
         try:
             self.upper_limit_row = self.df.iloc[0, 19:]
@@ -34,29 +31,33 @@ class DataVisual:
         self.df = process.df
         self.file_path = file_path
         self.column_names = self.df.columns.tolist()
-    def load_data(self):
+    def load_data(self):                             #提取测试数据
         y_data = self.df.iloc[3:,19:]
         raw_columns = self.df.columns[19:]
         self.test_columns = self.format_column_names(raw_columns)
         return y_data,self.test_columns
-    def create_plot_data(self):
+
+    def create_plot_data(self):                 #SN、Config、Data拼接到一起
         y_data, test_columns = self.load_data()
         serial_number = self.df.iloc[:, 2]
-        config_data = self.df.iloc[:,3]
+        config_data = self.df.iloc[:,4]
         create_dataframe = pd.concat([serial_number,config_data,y_data],axis=1)
         return create_dataframe
 
-    def draw_chart(self):
+
+    def draw_chart(self):                          #绘制图表
         # 1. 数据准备
         plot_data = self.create_plot_data()
         x_axis_labels = self.test_columns
-        #获取上下限数据系列（作为参考线）
-        upper_limit_data = self.df.iloc[0, 19:] if self.df.shape[0] > 1 else None
-        lower_limit_data = self.df.iloc[1, 19:] if self.df.shape[0] > 2 else None
+        # 获取上下限数据系列（作为参考线）
+        # upper_limit_data = self.df.iloc[0, 19:] if self.df.shape[0] > 1 else None
+        # lower_limit_data = self.df.iloc[1, 19:] if self.df.shape[0] > 2 else None
+        #强制转换数值类型（最终Bug,尼玛的）
+        upper_limit_data = pd.to_numeric(self.df.iloc[0, 19:], errors='coerce') if self.df.shape[0] > 1 else None
+        lower_limit_data = pd.to_numeric(self.df.iloc[1, 19:], errors='coerce') if self.df.shape[0] > 2 else None
 
         # 2. 创建图表对象
         fig = go.Figure()
-
         # 3. 添加上下限数据系列（作为参考线）
         if upper_limit_data is not None:
             fig.add_trace(go.Scatter(
@@ -65,9 +66,8 @@ class DataVisual:
                 mode='lines',
                 name='上限',
                 line=dict(color='red', width=2, dash='dash'),
-                showlegend = False
+                showlegend=True
             ))
-
         if lower_limit_data is not None:
             fig.add_trace(go.Scatter(
                 x=x_axis_labels,
@@ -75,51 +75,48 @@ class DataVisual:
                 mode='lines',
                 name='下限',
                 line=dict(color='red', width=2, dash='dash'),
-                showlegend = False
+                showlegend=True
             ))
         # 4. 添加数据系列
         if len(plot_data) > 0 and len(x_axis_labels) > 0:
             # 获取Y数据列（从第3列开始，跳过SN和Config）
-            y_columns = plot_data.columns[3:]
+            y_columns = plot_data.columns[2:]
             # 确保数据维度匹配
             if len(x_axis_labels) > 0 and len(y_columns) > 0:
-                # 统计每个SerialNumber出现的次数
-                serial_counts = {}
+                # 统计每个Config出现的次数
+                config_counts = {}
                 for index, row in plot_data.iterrows():
-                    if not row[2:].isnull().all():      # 只要不是全部为空值就处理
-                        sn = row.iloc[0]  # SerialNumber
-                        if sn not in serial_counts:
-                            serial_counts[sn] = 0
-                        serial_counts[sn] += 1
-                # 记录每个SerialNumber是否已在图例中显示
-                serial_shown = {}
-                # 为不同SerialNumber分配颜色
-                serial_colors = {}
+                    if not row[2:].isnull().all():  # 只要不是全部为空值就处理
+                        config = row.iloc[1]  # Config
+                        if config not in config_counts:
+                            config_counts[config] = 0
+                        config_counts[config] += 1
+                # 记录每个Config是否已在图例中显示
+                config_shown = {}
+                # 为不同Config分配颜色
+                config_colors = {}
                 color_palette = [
                     '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                     '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
                 color_index = 0
                 # 为每一行数据创建一条线
                 for index, row in plot_data.iterrows():
-                    if not row[2:].isnull().any():
+                    if not row[2:].isnull().all():
                         sn = row.iloc[0]  # SerialNumber
-                        config = row.iloc[1]
-
-                        # 为SerialNumber分配颜色
-                        if sn not in serial_colors:
-                            serial_colors[sn] = color_palette[color_index % len(color_palette)]
+                        config = row.iloc[1]  # Config
+                        # 为Config分配颜色
+                        if config not in config_colors:
+                            config_colors[config] = color_palette[color_index % len(color_palette)]
                             color_index += 1
-
-                        # 确定图例名称（基于SerialNumber）
-                        if serial_counts[sn] > 1:
-                            legend_name = f"{sn}({serial_counts[sn]})"
+                        # 确定图例名称（基于Config）
+                        if config_counts[config] > 1:
+                            legend_name = f"{config}({config_counts[config]})"
                         else:
-                            legend_name = str(sn)
-
+                            legend_name = str(config)
                         # 确定是否在图例中显示
                         show_in_legend = False
-                        if sn not in serial_shown:
-                            serial_shown[sn] = True
+                        if config not in config_shown:
+                            config_shown[config] = True
                             show_in_legend = True
 
                         fig.add_trace(go.Scatter(
@@ -127,10 +124,10 @@ class DataVisual:
                             y=row[2:].values,
                             mode='lines+markers',
                             name=legend_name,
-                            legendgroup=str(sn),  # 将相同SerialNumber归为一组
+                            legendgroup=str(config),  # 将相同Config归为一组
                             showlegend=show_in_legend,
-                            line=dict(width=2, color=serial_colors[sn]),
-                            marker=dict(size=6, color=serial_colors[sn]),
+                            line=dict(width=2, color=config_colors[config]),
+                            marker=dict(size=6, color=config_colors[config]),
                             hovertemplate=
                             "<b>SN</b>: %{meta[0]}<br>" +
                             "<b>Config</b>: %{meta[1]}<br>" +
@@ -139,26 +136,24 @@ class DataVisual:
                             "<extra></extra>",
                             meta=[sn, config]
                         ))
-
         # 5. 设置图表布局
         fig.update_layout(
             title=dict(
-                        text=os.path.splitext(os.path.basename(self.file_path))[0],
-                        x=0.5,
-                        xanchor='center',
-                        font=dict(
-                            size=22,
-                            color='black',
-                            family='Times New Roman',
-                            weight = 'bold',
-                        )
+                text=os.path.splitext(os.path.basename(self.file_path))[0],
+                x=0.5,
+                xanchor='center',
+                font=dict(
+                    size=22,
+                    color='black',
+                    family='Times New Roman',
+                    weight='bold',
+                )
             ),
             template="plotly_white",
-            yaxis = dict(
-                autorange = True,
-                automargin = True,
+            yaxis=dict(
+                autorange=True,
+                automargin=True,
             ),
-
         )
         return fig
 
@@ -226,7 +221,6 @@ def create_dash_app():
                                     'scrollZoom':True,
                                     'displayModeBar':True,
                                 })
-
             ])
         except Exception as e:
             print(f"处理文件 {file_path} 时出错: {e}")
