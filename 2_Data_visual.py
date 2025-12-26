@@ -52,7 +52,7 @@ class DataVisual:
         # 获取上下限数据系列（作为参考线）
         # upper_limit_data = self.df.iloc[0, 19:] if self.df.shape[0] > 1 else None
         # lower_limit_data = self.df.iloc[1, 19:] if self.df.shape[0] > 2 else None
-        #强制转换数值类型（最终Bug,尼玛的）
+        #强制转换数值类型（最终Bug,尼玛的,老子找了一上午）
         upper_limit_data = pd.to_numeric(self.df.iloc[0, 19:], errors='coerce') if self.df.shape[0] > 1 else None
         lower_limit_data = pd.to_numeric(self.df.iloc[1, 19:], errors='coerce') if self.df.shape[0] > 2 else None
 
@@ -64,7 +64,7 @@ class DataVisual:
                 x=x_axis_labels,
                 y=upper_limit_data.values,
                 mode='lines',
-                name='上限',
+                name='Upper Limit',
                 line=dict(color='red', width=2, dash='dash'),
                 showlegend=True
             ))
@@ -73,7 +73,7 @@ class DataVisual:
                 x=x_axis_labels,
                 y=lower_limit_data.values,
                 mode='lines',
-                name='下限',
+                name='Lower Limit',
                 line=dict(color='red', width=2, dash='dash'),
                 showlegend=True
             ))
@@ -87,7 +87,7 @@ class DataVisual:
                 config_counts = {}
                 for index, row in plot_data.iterrows():
                     if not row[2:].isnull().all():  # 只要不是全部为空值就处理
-                        config = row.iloc[1]  # Config
+                        config = row.iloc[1]         # Config
                         if config not in config_counts:
                             config_counts[config] = 0
                         config_counts[config] += 1

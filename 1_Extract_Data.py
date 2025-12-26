@@ -11,7 +11,7 @@ target_patterns = columns_config.iloc[:, 0].dropna().tolist()
 print("需要匹配的列模式:", target_patterns)
 
 # 读取Willy.xlsx数据
-df = pd.read_excel('cwd_data.xlsx')
+df = pd.read_excel('cwd_data.csv')
 
 # 获取前几列作为基础信息（例如前3列）
 base_columns = df.columns[:19].tolist()  # 可根据实际需要调整列数
