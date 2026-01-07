@@ -32,6 +32,7 @@ class DataVisual:
         self.df = process.df
         self.file_path = file_path
         self.column_names = self.df.columns.tolist()
+        self.file_name = os.path.splitext(os.path.basename(file_path))[0]
     def load_data(self):                             #提取测试数据
         y_data = self.df.iloc[3:,19:]
         raw_columns = self.df.columns[19:]
@@ -140,13 +141,18 @@ class DataVisual:
         # 5. 设置图表布局
         fig.update_layout(
             template="plotly_white",
+            title=dict(
+                text=self.file_name,   #显示文件名作为图标标题
+                x=0.5,
+                xanchor='center',
+                font=dict(size=22,weight='bold',family='Arial, sans-serif')
+            ),
             yaxis=dict(
                 autorange=True,
                 automargin=True,
             ),
         )
         return fig
-
 
     def format_column_names(self, columns):
         """格式化列名，提取关键信息"""
@@ -156,44 +162,29 @@ class DataVisual:
                 formatted.append("Unknown")
             else:
                 col_str = str(col)
-                # 匹配 BT/WIFI 格式：BT_RX-2480-3DH5--70_BER
-                parts = col_str.split('-')
-                if len(parts) >= 2 and any(parts[0].startswith(t) for t in ['BT', 'WIFI']):
-                    # 提取中间三个部分：频率-调制方式-参数
-                    if len(parts) >= 4:
-                        # 第二部分是频率，第三部分是调制方式，第四部分是参数
-                        freq = parts[1]  # 频率
-                        modulation = parts[2]  # 调制方式
-                        param = parts[3]  # 参数（可能为空）
+                # 定义要匹配的前缀
+                prefixes = ['BT_TX-', 'BT_RX-', 'BT_RX_', 'WIFI_TX-', 'WIFI_RX-', 'WIFI_RX_']
 
-                        # 检查第四部分是否为空，如果为空则取第五部分
-                        if not param and len(parts) > 4:
-                            param = parts[4]
+                # 检查是否以指定前缀开头
+                matched_prefix = None
+                for prefix in prefixes:
+                    if col_str.startswith(prefix):
+                        matched_prefix = prefix
+                        break
 
-                        # 构建结果字符串
-                        if freq and modulation:
-                            if param:
-                                formatted.append(f"{freq}-{modulation}-{param}")
-                            else:
-                                formatted.append(f"{freq}-{modulation}")
-                        else:
-                            formatted.append(col_str)
-                    elif len(parts) == 3:
-                        # 如果只有三个部分，返回频率和调制方式
-                        freq = parts[1]
-                        modulation = parts[2]
-                        formatted.append(f"{freq}-{modulation}")
-                    else:
-                        formatted.append(col_str)
+                if matched_prefix:
+                    # 去掉前缀，保留剩余部分
+                    remaining = col_str[len(matched_prefix):]  # 去掉前缀
+                    formatted.append(remaining)
                 else:
-                    # 对于其他格式，返回原字符串
+                    # 不匹配指定前缀的字符串，返回原字符串
                     formatted.append(col_str)
         return formatted
 
 
 def create_dash_app():
     # 获取文件夹下所有CSV文件
-    csv_files = glob.glob("extracted_data/*.csv")
+    csv_files = sorted(glob.glob("extracted_data/*.csv"))
     # 为每个文件创建图表
     graphs = []
     # 存储图表ID列表用于回调
@@ -206,17 +197,14 @@ def create_dash_app():
             processor.process_site()
             visual = DataVisual(processor, file_path)
             fig = visual.draw_chart()
-            # 添加文件名作为标题
-            file_name = os.path.splitext(os.path.basename(file_path))[0]
+
             graph_id = f"graph-{os.path.basename(file_path).replace('.', '_').replace('-', '_')}"
             y_min_id = f"y-min-{os.path.basename(file_path).replace('.', '_').replace('-', '_')}"
             y_max_id = f"y-max-{os.path.basename(file_path).replace('.', '_').replace('-', '_')}"
             store_id = f"store-{os.path.basename(file_path).replace('.', '_').replace('-', '_')}"
 
             graphs.extend([
-                html.H2(
-                    file_name,
-                    style={"text-align": "center", "margin-top": "30px"}),
+
                 # 添加Y轴范围控制输入框
                 html.Div([
                     html.Label("y_start:", style={"margin-right": "10px"}),
@@ -246,15 +234,8 @@ def create_dash_app():
 
     app = Dash(__name__)
 
-    # 为每个图表添加回调函数来控制Y轴范围
-    for graph_id, y_min_id, y_max_id, store_id, file_path in graph_ids:
-        @app.callback(
-            Output(graph_id, 'figure'),
-            [Input(f"apply-{os.path.basename(file_path).replace('.', '_').replace('-', '_')}", 'n_clicks')],
-            [dash.dependencies.State(y_min_id, 'value'),
-             dash.dependencies.State(y_max_id, 'value'),
-             dash.dependencies.State(store_id, 'data')]
-        )
+    # 为每个图表创建独立的回调函数
+    def create_callback(current_file_path):
         def update_y_range(n_clicks, y_min, y_max, original_fig_data):
             if n_clicks > 0 and original_fig_data:
                 # 从存储的数据创建图表对象
@@ -280,6 +261,17 @@ def create_dash_app():
                 if yaxis_range:
                     fig.update_layout(yaxis=yaxis_range)
 
+                # 恢复文件名标题
+                file_name = os.path.splitext(os.path.basename(current_file_path))[0]
+                fig.update_layout(
+                    title=dict(
+                        text=file_name,
+                        x=0.5,
+                        xanchor='center',
+                        font=dict(size=22,weight='bold',family='Arial, sans-serif')
+                    )
+                )
+
                 return fig
             else:
                 # 初始状态或没有点击应用按钮时，返回原始图表
@@ -288,9 +280,31 @@ def create_dash_app():
                     fig.update_layout(
                         template=original_fig_data['layout']['template'],
                     )
+                    # 恢复文件名标题
+                    file_name = os.path.splitext(os.path.basename(current_file_path))[0]
+                    fig.update_layout(
+                        title=dict(
+                            text=file_name,
+                            x=0.5,
+                            xanchor='center',
+                            font=dict(size=22,weight='bold',family='Arial, sans-serif')
+                        )
+                    )
                     return fig
 
             return dash.no_update
+        return update_y_range
+
+    # 为每个图表添加回调函数来控制Y轴范围
+    for graph_id, y_min_id, y_max_id, store_id, file_path in graph_ids:
+        callback_func = create_callback(file_path)
+        app.callback(
+            Output(graph_id, 'figure'),
+            [Input(f"apply-{os.path.basename(file_path).replace('.', '_').replace('-', '_')}", 'n_clicks')],
+            [dash.dependencies.State(y_min_id, 'value'),
+             dash.dependencies.State(y_max_id, 'value'),
+             dash.dependencies.State(store_id, 'data')]
+        )(callback_func)
 
     app.layout = html.Div([
                               html.H1("T11_P1_Station", style={"text-align": "center"}),
@@ -303,3 +317,4 @@ if __name__ == '__main__':
 
     app = create_dash_app()
     app.run(debug=True,port=8050)
+
