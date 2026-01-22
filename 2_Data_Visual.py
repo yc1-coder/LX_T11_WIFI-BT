@@ -140,6 +140,8 @@ class DataVisual:
                         ))
         # 5. 设置图表布局
         fig.update_layout(
+            width=800,
+            height=600,
             template="plotly_white",
             title=dict(
                 text=self.file_name,   #显示文件名作为图标标题
